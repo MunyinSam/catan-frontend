@@ -1,9 +1,9 @@
-'use client'
+'use client';
 
 import React from 'react';
 import MenuPage from './components/MenuPage';
 
-const App: React.FC = () => {
+export default function Page() {
   const handleJoinGame = (roomCode: string) => {
     console.log('Joining game with room code:', roomCode);
     // connect to socket.io and join the room
@@ -20,6 +20,4 @@ const App: React.FC = () => {
       onCreateGame={handleCreateGame}
     />
   );
-};
-
-export default App;
+}
