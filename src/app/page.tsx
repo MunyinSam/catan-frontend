@@ -1,7 +1,7 @@
 'use client'
 
-import MenuPage from '@/components/MenuPage';
 import React from 'react';
+import MenuPage from './components/MenuPage';
 
 const App: React.FC = () => {
   const handleJoinGame = (roomCode: string) => {
