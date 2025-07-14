@@ -1,3 +1,5 @@
+'use client'
+
 // MenuPage.tsx
 import React, { useEffect, useState } from 'react'
 import { socket } from '@/lib/socket'
