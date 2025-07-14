@@ -3,7 +3,7 @@
 // MenuPage.tsx
 import React, { useEffect, useState } from 'react'
 import { socket } from '@/lib/socket'
-import LobbyPage from '../app/LobbyPage/LobbyPage'
+import LobbyPage from './LobbyPage'
 
 // Define prop types
 interface MenuPageProps {
