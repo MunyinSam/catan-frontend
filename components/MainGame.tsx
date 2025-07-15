@@ -80,25 +80,6 @@ const getPolygonImage = (material: MaterialType) => {
     }
 }
 
-const getColor = (material: MaterialType) => {
-    switch (material) {
-        case 'wood':
-            return '#228B22'
-        case 'brick':
-            return '#B22222'
-        case 'wheat':
-            return '#FFD700'
-        case 'sheep':
-            return '#90EE90'
-        case 'ore':
-            return '#A9A9A9'
-        case 'desert':
-            return '#DEB887'
-        default:
-            return '#ccc'
-    }
-}
-
 const Hex = ({ tile }: { tile: HexTile }) => {
     const size = 40
     const centerX = 400 + tile.x
