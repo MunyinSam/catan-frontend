@@ -15,15 +15,16 @@ const MenuPage: React.FC<MenuPageProps> = ({ onJoinGame, onCreateGame }) => {
     const [roomCode, setRoomCode] = useState('')
     const [status, setStatus] = useState('')
     const [inLobby, setInLobby] = useState(false)
+    const [playerName, setPlayerName] = useState('')
 
     const handleCreateGame = () => {
         onCreateGame()
-        socket.emit('createGame')
+        socket.emit('createGame', playerName)
     }
 
     const handleJoinGame = () => {
         onJoinGame(roomCode)
-        socket.emit('joinGame', roomCode)
+        socket.emit('joinGame', roomCode, playerName)
     }
 
     useEffect(() => {
@@ -63,6 +64,16 @@ const MenuPage: React.FC<MenuPageProps> = ({ onJoinGame, onCreateGame }) => {
             >
                 Create Game
             </button>
+
+            <div className="mb-4">
+                <input
+                    type="text"
+                    placeholder="Your Name"
+                    value={playerName}
+                    onChange={(e) => setPlayerName(e.target.value)}
+                    className="border p-2 rounded mr-2"
+                />
+            </div>
 
             <div className="mb-4">
                 <input
