@@ -77,7 +77,29 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     )
     const [playerIndex, setPlayerIndex] = useState<number | null>(null) // this player's index
     const [showTradeUI, setShowTradeUI] = useState(false)
+
     const [isBuildingRoad, setIsBuildingRoad] = useState(false)
+    const [roadAngle, setRoadAngle] = useState(0)
+    const [isBuildingSettlement, setIsBuildingSettlement] = useState(false)
+    const [isBuildingCity, setIsBuildingCity] = useState(false)
+
+    const [roads, setRoads] = useState<
+        {
+            start: { x: number; y: number }
+            end: { x: number; y: number }
+            ownerId: string
+        }[]
+    >([])
+    const [settlements, setSettlements] = useState<
+        { position: { x: number; y: number }; ownerId: string }[]
+    >([])
+    const [cities, setCities] = useState<
+        { position: { x: number; y: number }; ownerId: string }[]
+    >([])
+
+    const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(
+        null
+    )
 
     const isMyTurn = playerIndex === currentTurnIndex
     const resourceCosts: {
@@ -135,6 +157,64 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         }
     }, [roomCode])
 
+    useEffect(() => {
+        const handleRemoteRoad = ({ road }: { road: any }) => {
+            setRoads((prev) => [...prev, road])
+        }
+
+        socket.on('roadBuilt', handleRemoteRoad)
+
+        return () => {
+            socket.off('roadBuilt', handleRemoteRoad)
+        }
+    }, [])
+
+    useEffect(() => {
+        const handleRemoteSettlement = ({
+            settlement,
+        }: {
+            settlement: any
+        }) => {
+            setSettlements((prev) => [...prev, settlement])
+        }
+
+        socket.on('settlementBuilt', handleRemoteSettlement)
+
+        return () => {
+            socket.off('settlementBuilt', handleRemoteSettlement)
+        }
+    }, [])
+
+    useEffect(() => {
+        const handleRemoteCity = ({ city }: { city: any }) => {
+            setCities((prev) => [...prev, city])
+        }
+
+        socket.on('cityBuilt', handleRemoteCity)
+
+        return () => {
+            socket.off('cityBuilt', handleRemoteCity)
+        }
+    }, [])
+
+    useEffect(() => {
+        console.log('isBuildingRoad:', isBuildingRoad)
+    }, [isBuildingRoad])
+
+    useEffect(() => {
+        console.log('mousePos:', mousePos)
+    }, [mousePos])
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (isBuildingRoad && (e.key === 'r' || e.key === 'R')) {
+                setRoadAngle((prev) => (prev + 60) % 360)
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [isBuildingRoad])
+
     const rollDice = () => {
         const die1 = Math.floor(Math.random() * 6) + 1
         const die2 = Math.floor(Math.random() * 6) + 1
@@ -162,12 +242,14 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         'Buy Settlement': () => {
             if (spendResources(resourceCosts['Buy Settlement'])) {
                 console.log('Built Settlement')
+                setIsBuildingSettlement(true)
                 // Add settlement placing logic here
             }
         },
         'Buy City': () => {
             if (spendResources(resourceCosts['Buy City'])) {
                 console.log('Upgraded to City')
+                setIsBuildingCity(true)
                 // Add city upgrade logic here
             }
         },
@@ -213,20 +295,268 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
 
     return (
         <div className="relative w-screen h-screen bg-blue-200 overflow-hidden">
-            <div className="absolute top-4 left-200 flex gap-2 bg-white shadow-md rounded-lg p-3">
+            <div className="absolute bottom-70 right-4 flex gap-2 bg-white shadow-md rounded-lg p-3">
                 Current Turn:{' '}
                 {players[currentTurnIndex ?? 0]?.name || 'Waiting...'}
             </div>
 
             {/* Game Board Centered */}
-            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-                <svg width="700" height="700" viewBox="0 0 700 700">
+            <div className="absolute inset-0 flex justify-center items-center">
+                <svg
+                    width="700"
+                    height="700"
+                    viewBox="0 0 700 700"
+                    onMouseMove={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const x = e.clientX - rect.left
+                        const y = e.clientY - rect.top
+                        setMousePos({ x, y })
+                    }}
+                    onClick={(e) => {
+                        if (!mousePos || !isMyTurn) return
+
+                        if (isBuildingRoad) {
+                            const length = 40
+                            const angleRad = (roadAngle * Math.PI) / 180
+                            const dx = (length / 2) * Math.cos(angleRad)
+                            const dy = (length / 2) * Math.sin(angleRad)
+
+                            const newRoad = {
+                                start: {
+                                    x: mousePos.x - dx,
+                                    y: mousePos.y - dy,
+                                },
+                                end: { x: mousePos.x + dx, y: mousePos.y + dy },
+                                ownerId: socket.id,
+                            }
+
+                            setRoads((prev) => [...prev, newRoad])
+                            socket.emit('buildRoad', {
+                                roomCode,
+                                road: newRoad,
+                            })
+                            setIsBuildingRoad(false)
+                            setMousePos(null)
+                            setRoadAngle(0) // reset angle after placing
+                            return
+                        }
+
+                        if (isBuildingSettlement) {
+                            const newSettlement = {
+                                position: { x: mousePos.x, y: mousePos.y },
+                                ownerId: socket.id,
+                            }
+                            setSettlements((prev) => [...prev, newSettlement])
+                            socket.emit('buildSettlement', {
+                                roomCode,
+                                settlement: newSettlement,
+                            })
+                            setIsBuildingSettlement(false)
+                            setMousePos(null)
+                            return
+                        }
+
+                        if (isBuildingCity) {
+                            const newCity = {
+                                position: { x: mousePos.x, y: mousePos.y },
+                                ownerId: socket.id,
+                            }
+                            setCities((prev) => [...prev, newCity])
+                            socket.emit('buildCity', {
+                                roomCode,
+                                city: newCity,
+                            })
+                            setIsBuildingCity(false)
+                            setMousePos(null)
+                            return
+                        }
+                    }}
+                >
                     <g transform="translate(-50, 0)">
                         {tiles.map((tile) => (
                             <Hex key={tile.id} tile={tile} />
                         ))}
+
+                        {roads.map((road, idx) => {
+                            const owner = players.find(
+                                (p) => p.id === road.ownerId
+                            )
+                            return (
+                                <line
+                                    key={idx}
+                                    x1={road.start.x}
+                                    y1={road.start.y}
+                                    x2={road.end.x}
+                                    y2={road.end.y}
+                                    stroke={owner?.color || 'black'}
+                                    strokeWidth={6}
+                                    strokeLinecap="round"
+                                />
+                            )
+                        })}
+
+                        {settlements.map((settlement, idx) => {
+                            const owner = players.find(
+                                (p) => p.id === settlement.ownerId
+                            )
+                            return (
+                                <circle
+                                    key={idx}
+                                    cx={settlement.position.x}
+                                    cy={settlement.position.y}
+                                    r={10}
+                                    fill={owner?.color || 'brown'}
+                                    stroke="#fff"
+                                    strokeWidth={2}
+                                />
+                            )
+                        })}
+
+                        {cities.map((city, idx) => {
+                            const owner = players.find(
+                                (p) => p.id === city.ownerId
+                            )
+                            return (
+                                <rect
+                                    key={idx}
+                                    x={city.position.x - 10}
+                                    y={city.position.y - 10}
+                                    width={20}
+                                    height={20}
+                                    fill={owner?.color || 'gray'}
+                                    stroke="#fff"
+                                    strokeWidth={2}
+                                    rx={4}
+                                />
+                            )
+                        })}
+
+                        {/* Ghost road preview that follows mouse */}
+                        {isBuildingRoad &&
+                            mousePos &&
+                            (() => {
+                                const length = 40
+                                const angleRad = (roadAngle * Math.PI) / 180
+                                const dx = (length / 2) * Math.cos(angleRad)
+                                const dy = (length / 2) * Math.sin(angleRad)
+                                return (
+                                    <line
+                                        x1={mousePos.x - dx}
+                                        y1={mousePos.y - dy}
+                                        x2={mousePos.x + dx}
+                                        y2={mousePos.y + dy}
+                                        stroke={
+                                            players[playerIndex!]?.color ||
+                                            'gray'
+                                        }
+                                        strokeWidth={6}
+                                        strokeDasharray="6, 4"
+                                        opacity={0.7}
+                                        pointerEvents="none"
+                                    />
+                                )
+                            })()}
+                        {isBuildingSettlement && mousePos && (
+                            <circle
+                                cx={mousePos.x}
+                                cy={mousePos.y}
+                                r={10}
+                                fill={players[playerIndex!]?.color || 'brown'}
+                                opacity={0.5}
+                                stroke="#fff"
+                                strokeWidth={2}
+                                pointerEvents="none"
+                            />
+                        )}
+                        {isBuildingCity && mousePos && (
+                            <rect
+                                x={mousePos.x - 10}
+                                y={mousePos.y - 10}
+                                width={20}
+                                height={20}
+                                fill={players[playerIndex!]?.color || 'gray'}
+                                opacity={0.5}
+                                stroke="#fff"
+                                strokeWidth={2}
+                                rx={4}
+                                pointerEvents="none"
+                            />
+                        )}
                     </g>
                 </svg>
+            </div>
+
+            {/* Card Adjustment Panel - Bottom Left, above cards */}
+            <div className="absolute bottom-24 left-16 flex flex-col gap-2 bg-white shadow-md rounded-lg p-3 z-20">
+                <div className="font-bold mb-1 text-center">Adjust Cards</div>
+                {(
+                    [
+                        'brick',
+                        'ore',
+                        'sheep',
+                        'wheat',
+                        'wood',
+                    ] as (keyof Player['resources'])[]
+                ).map((resource) => (
+                    <div key={resource} className="flex items-center gap-2">
+                        <img
+                            src={`/images/cards/${resource}.svg`}
+                            alt={resource}
+                            className="w-8 h-12"
+                        />
+                        <button
+                            className="bg-green-400 hover:bg-green-500 text-white font-bold px-2 rounded"
+                            onClick={() => {
+                                setPlayers((prev) =>
+                                    prev.map((p, i) =>
+                                        i === playerIndex
+                                            ? {
+                                                  ...p,
+                                                  resources: {
+                                                      ...p.resources,
+                                                      [resource]:
+                                                          (p.resources[
+                                                              resource
+                                                          ] || 0) + 1,
+                                                  },
+                                              }
+                                            : p
+                                    )
+                                )
+                            }}
+                        >
+                            +
+                        </button>
+                        <button
+                            className="bg-red-400 hover:bg-red-500 text-white font-bold px-2 rounded"
+                            onClick={() => {
+                                setPlayers((prev) =>
+                                    prev.map((p, i) =>
+                                        i === playerIndex
+                                            ? {
+                                                  ...p,
+                                                  resources: {
+                                                      ...p.resources,
+                                                      [resource]: Math.max(
+                                                          0,
+                                                          (p.resources[
+                                                              resource
+                                                          ] || 0) - 1
+                                                      ),
+                                                  },
+                                              }
+                                            : p
+                                    )
+                                )
+                            }}
+                        >
+                            –
+                        </button>
+                        <span className="ml-2 font-mono">
+                            {players[playerIndex!]?.resources[resource] ?? 0}
+                        </span>
+                    </div>
+                ))}
             </div>
 
             {/* Player Panel - Bottom Right */}
