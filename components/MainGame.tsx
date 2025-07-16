@@ -3,63 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { socket } from '../lib/socket'
 import { Player, Room } from '../types/lobby'
-
-type MaterialType = 'wood' | 'brick' | 'wheat' | 'sheep' | 'ore' | 'desert'
-
-interface HexTile {
-    id: number
-    materialType: MaterialType
-    rollNumber: number | null
-    x: number
-    y: number
-}
-
-const materialsPool: MaterialType[] = [
-    ...Array(7).fill('wood'),
-    ...Array(7).fill('brick'),
-    ...Array(7).fill('wheat'),
-    ...Array(7).fill('sheep'),
-    ...Array(7).fill('ore'),
-    ...Array(2).fill('desert'),
-]
-
-const rollNumberPool = [
-    2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 8, 8, 8, 8, 8, 9, 9, 9,
-    9, 9, 10, 10, 10, 10, 11, 11, 11, 12,
-]
-
-const generateFullBoard = (): HexTile[] => {
-    const radius = 3
-    const size = 40
-    const tiles: HexTile[] = []
-
-    const shuffledMaterials = [...materialsPool].sort(() => Math.random() - 0.5)
-    const shuffledRolls = [...rollNumberPool].sort(() => Math.random() - 0.5)
-
-    let id = 0
-    for (let q = -radius; q <= radius; q++) {
-        const r1 = Math.max(-radius, -q - radius)
-        const r2 = Math.min(radius, -q + radius)
-        for (let r = r1; r <= r2; r++) {
-            const material = shuffledMaterials.pop() || 'desert'
-            const rollNumber =
-                material === 'desert' ? null : shuffledRolls.pop() || null
-
-            const x = size * 1.5 * q
-            const y = size * Math.sqrt(3) * (r + q / 2)
-
-            tiles.push({
-                id: id++,
-                materialType: material,
-                rollNumber,
-                x,
-                y,
-            })
-        }
-    }
-
-    return tiles
-}
+import { MaterialType, HexTile } from '../types/game'
 
 const getPolygonImage = (material: MaterialType) => {
     switch (material) {
@@ -148,12 +92,25 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     const [dice, setDice] = useState<[number, number] | null>(null)
 
     useEffect(() => {
-        const board = generateFullBoard()
-        setTiles(board)
+        socket.emit('gameStart', roomCode)
+    }, [roomCode])
+
+    useEffect(() => {
+        const handleStartGame = (board: HexTile[]) => {
+            setTiles(board)
+            console.log('board state: ', board)
+        }
+
+        socket.on('gameStart', handleStartGame)
+
+        return () => {
+            socket.off('gameStart', handleStartGame)
+        }
     }, [])
 
     useEffect(() => {
         socket.emit('getRoomInfo', roomCode)
+
         const handleRoom = (room: Room) => {
             console.log('Room Info IN GAME:', room)
             setPlayers(room.players)
@@ -169,16 +126,30 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         const die1 = Math.floor(Math.random() * 6) + 1
         const die2 = Math.floor(Math.random() * 6) + 1
         setDice([die1, die2])
+        socket.emit('diceRoll', { roomCode, rolls: [die1, die2] }) // ✅ fix this
     }
+
+    useEffect(() => {
+        socket.on('updateDiceRoll', (rolls: [number, number]) => {
+            console.log('SOCKET: updateDiceRoll')
+            setDice(rolls)
+        })
+
+        return () => {
+            socket.off('updateDiceRoll')
+        }
+    }, [])
 
     return (
         <div className="relative w-screen h-screen bg-blue-200 overflow-hidden">
             {/* Game Board Centered */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <svg width="700" height="700">
-                    {tiles.map((tile) => (
-                        <Hex key={tile.id} tile={tile} />
-                    ))}
+            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+                <svg width="700" height="700" viewBox="0 0 700 700">
+                    <g transform="translate(-50, 0)">
+                        {tiles.map((tile) => (
+                            <Hex key={tile.id} tile={tile} />
+                        ))}
+                    </g>
                 </svg>
             </div>
 
@@ -193,15 +164,42 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         >
                             <div className="font-bold">{player.name}</div>
                             <div className="text-sm text-gray-600">
-                                Resources: [wheat: 0, wood: 0, ...]
+                                Cards:{' '}
+                                {Object.values(player.resources).reduce(
+                                    (total, count) => total + count,
+                                    0
+                                )}
                             </div>
+
                             <div className="text-sm text-gray-600">
-                                Dev Cards: 0
+                                Dev Cards: {player.devCards.length}
                             </div>
                         </li>
                     ))}
                 </ul>
             </div>
+
+            {players[0] && players[0].resources && (
+                <div className="absolute bottom-4 left-4 flex gap-2 bg-white shadow-md rounded-lg p-3">
+                    {Object.entries(players[0].resources).map(
+                        ([resource, count]) => (
+                            <div
+                                key={resource}
+                                className="flex items-center gap-1"
+                            >
+                                <img
+                                    src={`/images/cards/${resource}.svg`}
+                                    alt={resource}
+                                    className="w-8 h-12"
+                                />
+                                <span className="text-sm font-semibold">
+                                    {count}
+                                </span>
+                            </div>
+                        )
+                    )}
+                </div>
+            )}
 
             {/* Shop Panel - Bottom Center */}
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white shadow-md rounded-lg p-3">
@@ -224,7 +222,9 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             {/* Dice Panel - Above Shop, Left of Player Tab */}
             <div className="absolute bottom-28 right-72 flex flex-col items-center gap-2">
                 <button
-                    onClick={rollDice}
+                    onClick={() => {
+                        rollDice()
+                    }}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
                     Roll Dice
@@ -253,7 +253,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             <img
                 src={'/images/shop/shop.png'}
                 alt="Shop Cost"
-                className="absolute bottom-4 left-4 w-56 h-64 object-contain"
+                className="absolute top-4 left-4 w-56 h-64 object-contain"
             />
         </div>
     )
