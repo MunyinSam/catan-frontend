@@ -172,36 +172,57 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     }
 
     return (
-        <div className="flex flex-row items-start justify-center min-h-screen p-4 gap-8">
-            {/* Game Board */}
-            <div className="flex flex-col items-center">
-                <h1 className="text-2xl font-bold mb-4">
-                    Catan Full Board (5–6 Players)
-                </h1>
-                <svg width="800" height="800">
+        <div className="relative w-screen h-screen bg-blue-200 overflow-hidden">
+            {/* Game Board Centered */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <svg width="700" height="700">
                     {tiles.map((tile) => (
                         <Hex key={tile.id} tile={tile} />
                     ))}
                 </svg>
             </div>
 
-            {/* Player Sidebar */}
-            <div className="w-64 bg-white shadow-lg rounded-lg p-4">
+            {/* Player Panel - Bottom Right */}
+            <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-4">
                 <h2 className="text-lg font-semibold mb-2">Players</h2>
                 <ul className="space-y-2">
                     {players.map((player, index) => (
                         <li
                             key={player.id || index}
-                            className="p-2 bg-gray-100 rounded hover:bg-gray-200"
+                            className="p-2 bg-gray-100 rounded"
                         >
-                            {`${player.name}` || `Player ${index + 1}`}
+                            <div className="font-bold">{player.name}</div>
+                            <div className="text-sm text-gray-600">
+                                Resources: [wheat: 0, wood: 0, ...]
+                            </div>
+                            <div className="text-sm text-gray-600">
+                                Dev Cards: 0
+                            </div>
                         </li>
                     ))}
                 </ul>
             </div>
 
-            {/* Dice Roller */}
-            <div className="mt-6 flex flex-col items-center gap-2">
+            {/* Shop Panel - Bottom Center */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white shadow-md rounded-lg p-3">
+                {[
+                    'Trade',
+                    'Buy Dev Card',
+                    'Buy Road',
+                    'Buy Settlement',
+                    'Buy City',
+                ].map((action) => (
+                    <button
+                        key={action}
+                        className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-3 rounded shadow"
+                    >
+                        {action}
+                    </button>
+                ))}
+            </div>
+
+            {/* Dice Panel - Above Shop, Left of Player Tab */}
+            <div className="absolute bottom-28 right-72 flex flex-col items-center gap-2">
                 <button
                     onClick={rollDice}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -210,23 +231,30 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </button>
 
                 {dice && (
-                    <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-3">
                         <img
                             src={`/images/dices/dice-six-faces-${dice[0]}.svg`}
                             alt={`Die 1: ${dice[0]}`}
-                            className="w-12 h-12"
+                            className="w-10 h-10"
                         />
                         <img
                             src={`/images/dices/dice-six-faces-${dice[1]}.svg`}
                             alt={`Die 2: ${dice[1]}`}
-                            className="w-12 h-12"
+                            className="w-10 h-10"
                         />
-                        <span className="text-xl font-bold">
+                        <span className="text-lg font-bold">
                             = {dice[0] + dice[1]}
                         </span>
                     </div>
                 )}
             </div>
+
+            {/* Shop Cost Display (Image) - Bottom Left */}
+            <img
+                src={'/images/shop/shop.png'}
+                alt="Shop Cost"
+                className="absolute bottom-4 left-4 w-56 h-64 object-contain"
+            />
         </div>
     )
 }

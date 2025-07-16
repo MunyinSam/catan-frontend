@@ -30,6 +30,8 @@ export interface Player {
     buildings: Building[]     // List of roads/houses/mansions with positions
     isMyTurn: boolean
 
+    isReady: boolean
+
 }
 
 export type BuildingType = 'road' | 'settlement' | 'city'

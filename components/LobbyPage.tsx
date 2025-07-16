@@ -11,14 +11,14 @@ interface LobbyPageProps {
 
 const LobbyPage: React.FC<LobbyPageProps> = ({ roomCode }) => {
     const [players, setPlayers] = useState<Player[]>([])
-    const [startGame, setStartGame] = useState(false) // Add state
+    const [ready, setReady] = useState(false)
+    const [allReady, setAllReady] = useState(false)
+    const [gameStarted, setGameStarted] = useState(false)
 
     useEffect(() => {
         const handlePlayerList = (list: Player[]) => {
-            console.log(`Player List: ${list}`)
             setPlayers(list)
         }
-
         socket.on('playerList', handlePlayerList)
         socket.emit('getPlayerList', roomCode)
 
@@ -28,21 +28,50 @@ const LobbyPage: React.FC<LobbyPageProps> = ({ roomCode }) => {
     }, [roomCode])
 
     useEffect(() => {
-
         socket.emit('getRoomInfo', roomCode)
         const handleRoom = (room: Room) => {
             console.log('Room Info:', room)
         }
         socket.on('roomInfo', handleRoom)
-
-        // Cleanup
         return () => {
             socket.off('roomInfo', handleRoom)
         }
     }, [roomCode])
 
-    if (startGame) {
-        return <CatanGamePage roomCode={roomCode}/> // Show MainGame when startGame is true
+    useEffect(() => {
+        const handleAllReady = () => {
+            setAllReady(true)
+        }
+
+        socket.on('allPlayerReady', handleAllReady)
+        return () => {
+            socket.off('allPlayerReady', handleAllReady)
+        }
+    }, [])
+
+    useEffect(() => {
+        const handleStartGame = () => {
+            setGameStarted(true)
+        }
+        socket.on('gameStart', handleStartGame)
+        return () => {
+            socket.off('gameStart', handleStartGame)
+        }
+    }, [])
+
+    const startGame = () => {
+
+        if (allReady) {
+            console.log('Entering Main Game')
+            socket.emit('gameStart', roomCode)
+            setGameStarted(true)
+        } else {
+            alert('Not all players are ready.')
+        }
+    }
+
+    if (gameStarted) {
+        return <CatanGamePage roomCode={roomCode} />
     }
 
     return (
@@ -54,7 +83,7 @@ const LobbyPage: React.FC<LobbyPageProps> = ({ roomCode }) => {
 
             <div className="mt-4 text-left inline-block">
                 <h2 className="text-xl font-semibold mb-2">
-                    Players in this room:
+                    Players in this room: ({players.filter(p => p.isReady).length}/{players.length} Ready):
                 </h2>
                 <ul className="bg-white rounded shadow p-4">
                     {players.map((player) => (
@@ -62,15 +91,24 @@ const LobbyPage: React.FC<LobbyPageProps> = ({ roomCode }) => {
                             key={player.id}
                             className="border-b py-1 text-sm text-gray-700"
                         >
-                            {player.name}
+                            {player.isReady ? '✅' : ''} {player.name} 
                         </li>
                     ))}
                 </ul>
                 <button
                     className="block mx-auto mt-4 bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-4 border-b-4 border-blue-700 hover:border-blue-500 rounded"
-                    onClick={() => setStartGame(true)}
+                    onClick={() => startGame()}
                 >
                     Start Game
+                </button>
+                <button
+                    className="block mx-auto mt-4 bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-4 border-b-4 border-blue-700 hover:border-blue-500 rounded"
+                    onClick={() => {
+                        setReady(true)
+                        socket.emit('playerReady', roomCode)
+                    }}
+                >
+                    Ready
                 </button>
             </div>
         </div>
