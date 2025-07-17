@@ -3,14 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { socket } from '../lib/socket'
 import { Player, Room } from '../types/lobby'
-import {
-    HexTile,
-    Port,
-    ResourceType,
-    Road,
-    Settlement,
-    City,
-} from '../types/game'
+import { HexTile, Port, Road, Settlement, City } from '../types/game'
 import { getPolygonImage } from '../functions/maingame'
 
 const Hex = ({ tile }: { tile: HexTile }) => {
@@ -127,14 +120,14 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     const [usedCardIndex, setUsedCardIndex] = useState<number | null>(null)
 
     const isMyTurn = playerIndex === currentTurnIndex
-    const devCardCounts = players[playerIndex!]?.devCards.reduce(
-        (acc, card) => {
-            if (card.used) return acc
-            acc[card.type] = (acc[card.type] || 0) + 1
-            return acc
-        },
-        {} as Record<string, number>
-    )
+    // const devCardCounts = players[playerIndex!]?.devCards.reduce(
+    //     (acc, card) => {
+    //         if (card.used) return acc
+    //         acc[card.type] = (acc[card.type] || 0) + 1
+    //         return acc
+    //     },
+    //     {} as Record<string, number>
+    // )
     const resourceCosts: {
         [action: string]: Partial<Record<keyof Player['resources'], number>>
     } = {
@@ -338,9 +331,10 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 i === playerIndex
                     ? {
                           ...p,
-                          devCards: p.devCards.filter(
-                              (unused, idx) => idx !== usedCardIndex
-                          ),
+                          devCards: p.devCards.filter((card, idx) => {
+                              void card // satisfies linter
+                              return idx !== usedCardIndex
+                          }),
                       }
                     : p
             )
@@ -348,9 +342,10 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         socket.emit('devCardUpdate', {
             roomCode,
             playerId: players[playerIndex!]?.id,
-            devCards: players[playerIndex!]?.devCards.filter(
-                (unused, idx) => idx !== usedCardIndex
-            ),
+            devCards: players[playerIndex!]?.devCards.filter((card, idx) => {
+                void card
+                return idx !== usedCardIndex
+            }),
         })
 
         // Reset effect and index
@@ -529,7 +524,10 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             if (!player) return
 
             const availableMaterials = Object.entries(player.resources)
-                .filter(([unused, count]) => count > 0)
+                .filter(([resource, count]) => {
+                    void resource
+                    count > 0
+                })
                 .map(([resource]) => resource)
 
             if (availableMaterials.length === 0) {
@@ -1365,11 +1363,11 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 onClick={() => {
                                     // Build trade summary string
                                     const give = Object.entries(tradeOut)
-                                        .filter(([unused, v]) => v && v > 0)
+                                        .filter(([, v]) => v && v > 0)
                                         .map(([r, v]) => `${v} ${r}`)
                                         .join(', ')
                                     const get = Object.entries(tradeIn)
-                                        .filter(([unused, v]) => v && v > 0)
+                                        .filter(([, v]) => v && v > 0)
                                         .map(([r, v]) => `${v} ${r}`)
                                         .join(', ')
                                     const msg = `${
