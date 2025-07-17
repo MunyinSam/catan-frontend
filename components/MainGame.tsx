@@ -119,7 +119,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
 
     const [usedCardIndex, setUsedCardIndex] = useState<number | null>(null)
 
-    const isMyTurn = playerIndex === currentTurnIndex
+    // const isMyTurn = playerIndex === currentTurnIndex
     // const devCardCounts = players[playerIndex!]?.devCards.reduce(
     //     (acc, card) => {
     //         if (card.used) return acc
@@ -513,12 +513,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 // Add city upgrade logic here
             }
         },
-        'End Turn': () => {
-            const msg = `${players[playerIndex!]?.name} ended their turn`
-            setLogs((prev) => [...prev, msg])
-            socket.emit('resourceLog', msg)
-            socket.emit('endTurn', roomCode)
-        },
+
         'Random Material': () => {
             const player = players[playerIndex!]
             if (!player) return
@@ -545,6 +540,12 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             const msg = `${player.name} randomly got: ${randomMaterial}`
             setLogs((prev) => [...prev, msg])
             socket.emit('resourceLog', msg)
+        },
+        'End Turn': () => {
+            const msg = `${players[playerIndex!]?.name} ended their turn`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
+            socket.emit('endTurn', roomCode)
         },
     }
 
@@ -601,7 +602,9 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         setMousePos({ x, y })
                     }}
                     onClick={() => {
-                        if (!mousePos || !isMyTurn) return
+                        if (!mousePos) return
+
+                        // if (!mousePos || !isMyTurn) return
 
                         if (isBuildingRoad) {
                             const length = 40
@@ -759,10 +762,10 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             return (
                                 <line
                                     key={idx}
-                                    x1={road.start.x}
-                                    y1={road.start.y}
-                                    x2={road.end.x}
-                                    y2={road.end.y}
+                                    x1={road.start.x + 50}
+                                    y1={road.start.y + 10}
+                                    x2={road.end.x + 50}
+                                    y2={road.end.y + 10}
                                     stroke={owner?.color || 'black'}
                                     strokeWidth={6}
                                     strokeLinecap="round"
@@ -777,8 +780,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             return (
                                 <circle
                                     key={idx}
-                                    cx={settlement.position.x}
-                                    cy={settlement.position.y}
+                                    cx={settlement.position.x + 50}
+                                    cy={settlement.position.y + 10}
                                     r={10}
                                     fill={owner?.color || 'brown'}
                                     stroke="#fff"
@@ -794,8 +797,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             return (
                                 <rect
                                     key={idx}
-                                    x={city.position.x - 10}
-                                    y={city.position.y - 10}
+                                    x={city.position.x - 10 + 50}
+                                    y={city.position.y - 10 + 10}
                                     width={20}
                                     height={20}
                                     fill={owner?.color || 'gray'}
@@ -811,8 +814,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 tile.id === robberTileId ? (
                                     <circle
                                         key="robber"
-                                        cx={400 + tile.x}
-                                        cy={350 + tile.y}
+                                        cx={400 + tile.x + 60}
+                                        cy={350 + tile.y + 35}
                                         r={18}
                                         fill="black"
                                         stroke="gold"
@@ -834,10 +837,10 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 const dy = (length / 2) * Math.sin(angleRad)
                                 return (
                                     <line
-                                        x1={mousePos.x - dx}
-                                        y1={mousePos.y - dy}
-                                        x2={mousePos.x + dx}
-                                        y2={mousePos.y + dy}
+                                        x1={mousePos.x - dx + 50}
+                                        y1={mousePos.y - dy + 10}
+                                        x2={mousePos.x + dx + 50}
+                                        y2={mousePos.y + dy + 10}
                                         stroke={
                                             players[playerIndex!]?.color ||
                                             'gray'
@@ -851,8 +854,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             })()}
                         {isBuildingSettlement && mousePos && (
                             <circle
-                                cx={mousePos.x}
-                                cy={mousePos.y}
+                                cx={mousePos.x + 50}
+                                cy={mousePos.y + 10}
                                 r={10}
                                 fill={players[playerIndex!]?.color || 'brown'}
                                 opacity={0.5}
@@ -863,8 +866,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         )}
                         {isBuildingCity && mousePos && (
                             <rect
-                                x={mousePos.x - 10}
-                                y={mousePos.y - 10}
+                                x={mousePos.x - 10 + 50}
+                                y={mousePos.y - 10 + 10}
                                 width={20}
                                 height={20}
                                 fill={players[playerIndex!]?.color || 'gray'}
@@ -878,8 +881,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
 
                         {isPlacingRobber && mousePos && (
                             <circle
-                                cx={mousePos.x}
-                                cy={mousePos.y}
+                                cx={mousePos.x + 50}
+                                cy={mousePos.y + 10}
                                 r={18}
                                 fill="black"
                                 opacity={0.4}
@@ -892,7 +895,6 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </svg>
             </div>
 
-            {/* Player Panel - Bottom Right */}
             {/* Player Panel - Bottom Right */}
             <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-3 h-[40rem] flex flex-col">
                 <h2 className="text-lg font-semibold mb-2">Players</h2>
@@ -1200,31 +1202,34 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </div>
             </div>
             {/* Shop Panel - Bottom Center */}
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex gap-1 bg-white shadow-md rounded-md p-2 text-xs max-w-md">
+            <div className="absolute bottom-3 left-165 transform -translate-x-1/2 flex gap-1 bg-white shadow-md rounded-md p-2 text-xs max-w-md">
                 {Object.entries(actionHandlers).map(([action, handler]) => (
                     <button
                         key={action}
-                        className={`bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-1 px-2 rounded shadow
-                ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}
-            `}
-                        onClick={isMyTurn ? handler : undefined}
-                        disabled={!isMyTurn}
+                        className={`bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-1 px-2 rounded shadow}`}
+                        onClick={handler}
+                        // onClick={isMyTurn ? handler : undefined}
+                        // disabled={!isMyTurn}
                     >
                         {action}
                     </button>
                 ))}
+            </div>
+
+            <div className="absolute bottom-5 left-250 transform -translate-x-1/2 flex gap-1 bg-white shadow-md rounded-md p-2 text-xs max-w-md">
                 <button
-                    className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-2 rounded shadow
-            ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
-                    onClick={
-                        isMyTurn ? () => setIsPlacingRobber(true) : undefined
-                    }
-                    disabled={!isMyTurn}
+                    className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-2 rounded shadow}`}
+                    // onClick={
+                    //     isMyTurn ? () => setIsPlacingRobber(true) : undefined
+                    // }
+                    onClick={() => setIsPlacingRobber(true)}
+                    // disabled={!isMyTurn}
                 >
                     Place Robber
                 </button>
+                <button className={`px-3 py-1 rounded`}>🧽 Eraser</button>
             </div>
+
             {/* Dice Panel - Above Shop, Left of Player Tab */}
             <div className="absolute bottom-6 right-72 flex flex-col items-center gap-2">
                 {dice && (
@@ -1246,9 +1251,10 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 )}
                 <button
                     onClick={() => {
-                        if (isMyTurn) rollDice()
+                        // if (isMyTurn)
+                        rollDice()
                     }}
-                    disabled={!isMyTurn}
+                    // disabled={!isMyTurn}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
                     Roll Dice
