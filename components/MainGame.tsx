@@ -71,28 +71,6 @@ const Hex = ({ tile }: { tile: HexTile }) => {
     )
 }
 
-const portCoords: { x: number; y: number }[] = [
-    { x: 340, y: 90 },
-    { x: 460, y: 90 },
-    { x: 600, y: 160 },
-    { x: 670, y: 280 },
-    { x: 670, y: 420 },
-    { x: 130, y: 280 },
-    { x: 130, y: 420 },
-    { x: 600, y: 530 },
-    { x: 200, y: 540 },
-    { x: 200, y: 160 },
-    { x: 330, y: 600 },
-    { x: 470, y: 600 },
-]
-
-function shuffle<T>(array: T[]): T[] {
-    return array
-        .map((a) => [Math.random(), a] as const)
-        .sort(([a], [b]) => a - b)
-        .map(([, b]) => b)
-}
-
 interface CatanGamePageProps {
     roomCode: string
 }
@@ -131,11 +109,32 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     )
 
     const [logs, setLogs] = useState<string[]>([])
-    const [ports] = useState(() => generatePorts())
+    const [ports, setPorts] = useState<Port[]>([])
     const [isPlacingRobber, setIsPlacingRobber] = useState(false)
     const [robberTileId, setRobberTileId] = useState<number | null>(null)
 
+    const [tradeOut, setTradeOut] = useState<
+        Partial<Record<keyof Player['resources'], number>>
+    >({})
+    const [tradeIn, setTradeIn] = useState<
+        Partial<Record<keyof Player['resources'], number>>
+    >({})
+
+    const [devCardEffect, setDevCardEffect] = useState<null | {
+        type: 'point' | 'robber' | 'road'
+    }>(null)
+
+    const [usedCardIndex, setUsedCardIndex] = useState<number | null>(null)
+
     const isMyTurn = playerIndex === currentTurnIndex
+    const devCardCounts = players[playerIndex!]?.devCards.reduce(
+        (acc, card) => {
+            if (card.used) return acc
+            acc[card.type] = (acc[card.type] || 0) + 1
+            return acc
+        },
+        {} as Record<string, number>
+    )
     const resourceCosts: {
         [action: string]: Partial<Record<keyof Player['resources'], number>>
     } = {
@@ -274,6 +273,105 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         }
     }, [])
 
+    useEffect(() => {
+        socket.on('portsGenerated', (serverPorts: Port[]) => {
+            setPorts(serverPorts)
+        })
+        return () => {
+            socket.off('portsGenerated')
+        }
+    }, [])
+
+    useEffect(() => {
+        socket.emit('getPorts', roomCode)
+    }, [roomCode])
+
+    useEffect(() => {
+        socket.on('devCardUpdate', ({ playerId, devCards }) => {
+            setPlayers((prev) =>
+                prev.map((p) => (p.id === playerId ? { ...p, devCards } : p))
+            )
+        })
+        return () => {
+            socket.off('devCardUpdate')
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!devCardEffect) return
+
+        if (devCardEffect.type === 'point') {
+            const msg = `${
+                players[playerIndex!]?.name
+            } used a Free Point card and gained 1 point!`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
+            setDevCardEffect(null)
+        }
+
+        if (devCardEffect.type === 'road') {
+            setIsBuildingRoad(true)
+            const msg = `${
+                players[playerIndex!]?.name
+            } used a 2 Free Roads card!`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
+            setDevCardEffect(null)
+        }
+
+        if (devCardEffect.type === 'robber') {
+            const msg = `${players[playerIndex!]?.name} used a robber`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
+            setDevCardEffect(null)
+        }
+    }, [devCardEffect])
+
+    useEffect(() => {
+        if (!devCardEffect || usedCardIndex == null) return
+
+        // ...your effect logic for each card type...
+
+        // Remove the used dev card
+        setPlayers((prev) =>
+            prev.map((p, i) =>
+                i === playerIndex
+                    ? {
+                          ...p,
+                          devCards: p.devCards.filter(
+                              (_, idx) => idx !== usedCardIndex
+                          ),
+                      }
+                    : p
+            )
+        )
+        socket.emit('devCardUpdate', {
+            roomCode,
+            playerId: players[playerIndex!]?.id,
+            devCards: players[playerIndex!]?.devCards.filter(
+                (_, idx) => idx !== usedCardIndex
+            ),
+        })
+
+        // Reset effect and index
+        setDevCardEffect(null)
+        setUsedCardIndex(null)
+    }, [devCardEffect, usedCardIndex])
+
+    useEffect(() => {
+        socket.on('pointsUpdated', ({ playerId, points }) => {
+            setPlayers((prevPlayers) =>
+                prevPlayers.map((p) =>
+                    p.id === playerId ? { ...p, points } : p
+                )
+            )
+        })
+
+        return () => {
+            socket.off('pointsUpdated')
+        }
+    }, [])
+
     const rollDice = () => {
         const die1 = Math.floor(Math.random() * 6) + 1
         const die2 = Math.floor(Math.random() * 6) + 1
@@ -293,12 +391,49 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         },
         'Buy Dev Card': () => {
             if (spendResources(resourceCosts['Buy Dev Card'])) {
+                // Weighted: robber (5), road (1), point (1)
+                socket.emit('getDevelopmentCardCounts', roomCode)
+
+                const cardTypes = [
+                    'robber',
+                    'robber',
+                    'robber',
+                    'robber',
+                    'robber',
+                    'road',
+                    'point',
+                ] as const
+
+                const randomType =
+                    cardTypes[Math.floor(Math.random() * cardTypes.length)]
                 const msg = `${
                     players[playerIndex!]?.name
                 } bought a Development Card`
                 setLogs((prev) => [...prev, msg])
                 socket.emit('resourceLog', msg)
-                // Add dev card logic here
+
+                // Add dev card to player
+                setPlayers((prev) =>
+                    prev.map((p, i) =>
+                        i === playerIndex
+                            ? {
+                                  ...p,
+                                  devCards: [
+                                      ...p.devCards,
+                                      { type: randomType },
+                                  ],
+                              }
+                            : p
+                    )
+                )
+                socket.emit('devCardUpdate', {
+                    roomCode,
+                    playerId: players[playerIndex!]?.id,
+                    devCards: [
+                        ...(players[playerIndex!]?.devCards || []),
+                        { type: randomType },
+                    ],
+                })
             }
         },
         'Buy Road': () => {
@@ -375,47 +510,9 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         return true
     }
 
-    function generatePorts(): Port[] {
-        const resources: ResourceType[] = [
-            'brick',
-            'wood',
-            'ore',
-            'wheat',
-            'sheep',
-        ]
-
-        // 2 null ports (3:1)
-        const portsData: Omit<Port, 'x' | 'y'>[] = [
-            { ratio: '3:1', resource: null },
-            { ratio: '3:1', resource: null },
-        ]
-
-        // Add each resource once
-        const baseResources = [...resources]
-
-        // Add 5 more random ones from all 5
-        const additional = shuffle([...resources]).slice(0, 5)
-
-        const finalResources = shuffle([...baseResources, ...additional])
-
-        portsData.push(
-            ...finalResources.map((resource) => ({
-                ratio: '2:1' as const,
-                resource,
-            }))
-        )
-
-        const shuffledCoords = shuffle(portCoords)
-
-        return shuffledCoords.map((coord, i) => ({
-            ...coord,
-            ...portsData[i],
-        }))
-    }
-
     return (
         <div className="relative w-screen h-screen bg-blue-200 overflow-hidden">
-            <div className="absolute top-4 left-60 flex gap-2 bg-white shadow-md rounded-lg p-3">
+            <div className="absolute top-4 left-10 flex gap-2 bg-white shadow-md rounded-lg p-3 text-base font-bold">
                 Current Turn:{' '}
                 {players[currentTurnIndex ?? 0]?.name || 'Waiting...'}
             </div>
@@ -716,6 +813,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                     </g>
                 </svg>
             </div>
+
             {/* Player Panel - Bottom Right */}
             <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-4">
                 <h2 className="text-lg font-semibold mb-2">Players</h2>
@@ -751,7 +849,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             {/* RESOURCES*/}
             {players[playerIndex ?? 0] &&
                 players[playerIndex ?? 0].resources && (
-                    <div className="absolute bottom-4 left-16 flex flex-col gap-2 bg-white shadow-md rounded-lg p-3 z-20">
+                    <div className="absolute bottom-4 left-10 flex flex-col gap-2 bg-white shadow-md rounded-lg p-3 z-20">
                         <div className="font-bold mb-1 text-center">
                             Your Resources
                         </div>
@@ -843,8 +941,68 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         ))}
                     </div>
                 )}
+
+            {players[playerIndex!]?.devCards?.length > 0 && (
+                <div className="absolute top-89 left-80 -translate-x-1/2 bg-white shadow rounded p-3 z-30 text-sm w-64 max-h-64 overflow-y-auto text-sm">
+                    <div className="font-bold mb-2">Your Dev Cards</div>
+                    {Object.entries(
+                        players[playerIndex!]?.devCards.reduce(
+                            (acc: Record<string, number>, card) => {
+                                if (!card.used) {
+                                    acc[card.type] = (acc[card.type] || 0) + 1
+                                }
+                                return acc
+                            },
+                            {}
+                        )
+                    ).map(([type, count]) => (
+                        <div
+                            key={type}
+                            className="flex items-center justify-between mb-2"
+                        >
+                            <span>
+                                {type === 'point' && 'Free Point'}
+                                {type === 'robber' && 'Move Robber & Steal'}
+                                {type === 'road' && '2 Free Roads'}: {count}
+                            </span>
+                            <button
+                                className="bg-purple-400 hover:bg-purple-500 text-white px-2 py-1 rounded text-sm ml-3"
+                                onClick={() => {
+                                    const idx = players[
+                                        playerIndex!
+                                    ]?.devCards.findIndex(
+                                        (c) => c.type === type && !c.used
+                                    )
+                                    if (idx !== -1) {
+                                        setDevCardEffect(
+                                            players[playerIndex!]?.devCards[idx]
+                                        )
+                                        setUsedCardIndex(idx)
+                                    }
+                                }}
+                            >
+                                Use
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <button
+                className="ml-2 px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
+                onClick={() => {
+                    const currentPoints = players[playerIndex!]?.points || 0
+                    socket.emit('updatePoints', {
+                        playerId: players[playerIndex!]?.id,
+                        points: currentPoints + 1,
+                    })
+                }}
+            >
+                +1 Point
+            </button>
+
             {/* LOGS */}
-            <div className="absolute top-4 right-4 w-80 bg-white shadow-lg rounded-lg p-4 z-30">
+            <div className="absolute top-20 left-10 w-80 bg-white shadow-lg rounded-lg p-4 z-30">
                 <h2 className="text-lg font-semibold mb-2">Game Log</h2>
                 <div ref={logRef} className="h-48 overflow-y-auto text-sm">
                     {logs.map((log, idx) => (
@@ -855,7 +1013,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </div>
             </div>
             {/* Shop Panel - Bottom Center */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white shadow-md rounded-lg p-3">
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white shadow-md rounded-lg p-3 text-sm">
                 {Object.entries(actionHandlers).map(([action, handler]) => (
                     <button
                         key={action}
@@ -880,7 +1038,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </button>
             </div>
             {/* Dice Panel - Above Shop, Left of Player Tab */}
-            <div className="absolute bottom-4 right-76 flex flex-col items-center gap-2">
+            <div className="absolute bottom-6 right-72 flex flex-col items-center gap-2">
                 {dice && (
                     <div className="flex items-center gap-3">
                         <img
@@ -909,22 +1067,104 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </button>
             </div>
             {/* Shop Cost Display (Image) - Bottom Left */}
-            <img
+            {/* <img
                 src={'/images/shop/shop.png'}
                 alt="Shop Cost"
-                className="absolute top-4 left-4 w-56 h-64 object-contain"
-            />
+                className="absolute top-23 left-4 w-56 h-64 object-contain"
+            /> */}
             {showTradeUI && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-                        <h2 className="text-xl font-bold mb-4">Trade</h2>
-                        <p className="text-sm mb-4">
-                            This is where you can implement trade with bank or
-                            player.
-                        </p>
-
-                        {/* Placeholder: You can design dropdowns or select inputs here */}
-                        <div className="flex justify-end gap-2">
+                <div className="absolute inset-0 backdrop-blur-sm bg-white/30 flex justify-center items-center z-50">
+                    <div className="bg-white p-8 rounded-lg shadow-lg w-[700px] flex flex-col gap-6">
+                        <h2 className="text-xl font-bold mb-4 text-center">
+                            Trade
+                        </h2>
+                        <div className="flex gap-12 justify-center">
+                            {/* Trade Out (Give) */}
+                            <div>
+                                <div className="font-semibold mb-2 text-center">
+                                    You Give
+                                </div>
+                                {(
+                                    [
+                                        'brick',
+                                        'ore',
+                                        'sheep',
+                                        'wheat',
+                                        'wood',
+                                    ] as (keyof Player['resources'])[]
+                                ).map((resource) => (
+                                    <div
+                                        key={resource}
+                                        className="flex items-center gap-2 mb-2"
+                                    >
+                                        <img
+                                            src={`/images/cards/${resource}.svg`}
+                                            alt={resource}
+                                            className="w-8 h-12"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            className="w-16 px-2 py-1 border rounded text-center"
+                                            value={tradeOut[resource] ?? ''}
+                                            onChange={(e) => {
+                                                const val = Math.max(
+                                                    0,
+                                                    Number(e.target.value)
+                                                )
+                                                setTradeOut((prev) => ({
+                                                    ...prev,
+                                                    [resource]: val,
+                                                }))
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Trade In (Receive) */}
+                            <div>
+                                <div className="font-semibold mb-2 text-center">
+                                    You Get
+                                </div>
+                                {(
+                                    [
+                                        'brick',
+                                        'ore',
+                                        'sheep',
+                                        'wheat',
+                                        'wood',
+                                    ] as (keyof Player['resources'])[]
+                                ).map((resource) => (
+                                    <div
+                                        key={resource}
+                                        className="flex items-center gap-2 mb-2"
+                                    >
+                                        <img
+                                            src={`/images/cards/${resource}.svg`}
+                                            alt={resource}
+                                            className="w-8 h-12"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            className="w-16 px-2 py-1 border rounded text-center"
+                                            value={tradeIn[resource] ?? ''}
+                                            onChange={(e) => {
+                                                const val = Math.max(
+                                                    0,
+                                                    Number(e.target.value)
+                                                )
+                                                setTradeIn((prev) => ({
+                                                    ...prev,
+                                                    [resource]: val,
+                                                }))
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-4">
                             <button
                                 className="bg-gray-300 px-4 py-2 rounded"
                                 onClick={() => setShowTradeUI(false)}
@@ -934,11 +1174,28 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             <button
                                 className="bg-blue-500 text-white px-4 py-2 rounded"
                                 onClick={() => {
-                                    alert('Trade confirmed (demo)')
+                                    // Build trade summary string
+                                    const give = Object.entries(tradeOut)
+                                        .filter(([_, v]) => v && v > 0)
+                                        .map(([r, v]) => `${v} ${r}`)
+                                        .join(', ')
+                                    const get = Object.entries(tradeIn)
+                                        .filter(([_, v]) => v && v > 0)
+                                        .map(([r, v]) => `${v} ${r}`)
+                                        .join(', ')
+                                    const msg = `${
+                                        players[playerIndex!]?.name
+                                    } wants to trade: Give [${
+                                        give || 'none'
+                                    }] for [${get || 'none'}]`
+                                    setLogs((prev) => [...prev, msg])
+                                    socket.emit('resourceLog', msg)
                                     setShowTradeUI(false)
+                                    setTradeOut({})
+                                    setTradeIn({})
                                 }}
                             >
-                                Confirm
+                                Confirm Trade
                             </button>
                         </div>
                     </div>

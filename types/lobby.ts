@@ -11,8 +11,8 @@ export interface Player {
         ore: number
     }
 
-    devCards: string[]        // e.g. ['Knight', 'Monopoly']
-    newDevCards: string[]     // bought this turn
+    devCards: { type: 'point' | 'robber' | 'road'; used?: boolean }[]
+    newDevCards: string[] // bought this turn
 
     playedDevCard: boolean
 
@@ -27,19 +27,18 @@ export interface Player {
     invSettlement: number
     invCity: number
 
-    buildings: Building[]     // List of roads/houses/mansions with positions
+    buildings: Building[] // List of roads/houses/mansions with positions
     isMyTurn: boolean
 
     isReady: boolean
-
 }
 
 export type BuildingType = 'road' | 'settlement' | 'city'
 
 export interface Building {
     type: BuildingType
-    position: number[]          // [q, r, cornerIndex] or edge
-    connectedTo?: number[][]    // For roads (from → to)
+    position: number[] // [q, r, cornerIndex] or edge
+    connectedTo?: number[][] // For roads (from → to)
 }
 
 export interface Room {
@@ -49,4 +48,3 @@ export interface Room {
     createdAt?: number
     // etc.
 }
-
