@@ -11,7 +11,6 @@ interface LobbyPageProps {
 
 const LobbyPage: React.FC<LobbyPageProps> = ({ roomCode }) => {
     const [players, setPlayers] = useState<Player[]>([])
-    const [ready, setReady] = useState(false)
     const [allReady, setAllReady] = useState(false)
     const [gameStarted, setGameStarted] = useState(false)
 
@@ -104,7 +103,6 @@ const LobbyPage: React.FC<LobbyPageProps> = ({ roomCode }) => {
                 <button
                     className="block mx-auto mt-4 bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-4 border-b-4 border-blue-700 hover:border-blue-500 rounded"
                     onClick={() => {
-                        setReady(true)
                         socket.emit('playerReady', roomCode)
                     }}
                 >

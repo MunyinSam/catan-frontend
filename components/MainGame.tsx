@@ -3,16 +3,23 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { socket } from '../lib/socket'
 import { Player, Room } from '../types/lobby'
-import { HexTile, Port, ResourceType, Road, Settlement, City } from '../types/game'
+import {
+    HexTile,
+    Port,
+    ResourceType,
+    Road,
+    Settlement,
+    City,
+} from '../types/game'
 import { getPolygonImage } from '../functions/maingame'
 
 const Hex = ({ tile }: { tile: HexTile }) => {
     const size = 40
     const centerX = 400 + tile.x
     const centerY = 350 + tile.y
-
-    const points = Array.from({ length: 6 })
-        .map((__, i) => {
+    
+    const points = [...Array(6).keys()]
+        .map((i) => {
             const angle = (Math.PI / 180) * (60 * i)
             const x = centerX + size * Math.cos(angle)
             const y = centerY + size * Math.sin(angle)
@@ -201,7 +208,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
 
     useEffect(() => {
         const handleRemoteRoad = ({ road }: { road: Road }) => {
-            console.log('ROAD ', road);
+            console.log('ROAD ', road)
             setRoads((prev) => [...prev, road])
         }
 
