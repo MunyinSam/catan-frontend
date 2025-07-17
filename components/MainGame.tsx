@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { socket } from '../lib/socket'
 import { Player, Room } from '../types/lobby'
-import { MaterialType, HexTile, Port, ResourceType } from '../types/game'
+import { HexTile, Port, ResourceType } from '../types/game'
 import { getPolygonImage } from '../functions/maingame'
 
 const Hex = ({ tile }: { tile: HexTile }) => {
@@ -123,9 +123,6 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         null
     )
 
-    const [pendingResources, setPendingResources] = useState<
-        Player['resources'] | null
-    >(null)
     const [logs, setLogs] = useState<string[]>([])
     const [ports] = useState(() => generatePorts())
     const [isPlacingRobber, setIsPlacingRobber] = useState(false)
@@ -262,12 +259,6 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isBuildingRoad])
-
-    useEffect(() => {
-        if (playerIndex != null && players[playerIndex]) {
-            setPendingResources({ ...players[playerIndex].resources })
-        }
-    }, [playerIndex, players])
 
     useEffect(() => {
         socket.on('robberMoved', ({ tileId }) => {
@@ -435,7 +426,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         const y = e.clientY - rect.top
                         setMousePos({ x, y })
                     }}
-                    onClick={(e) => {
+                    onClick={() => {
                         if (!mousePos || !isMyTurn) return
 
                         if (isBuildingRoad) {
@@ -904,7 +895,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 )}
                 <button
                     onClick={() => {
-                        isMyTurn ? rollDice() : undefined
+                        if (isMyTurn) rollDice()
                     }}
                     disabled={!isMyTurn}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
