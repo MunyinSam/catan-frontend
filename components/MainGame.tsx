@@ -1363,13 +1363,21 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 onClick={() => {
                                     // Build trade summary string
                                     const give = Object.entries(tradeOut)
-                                        .filter(([, v]) => v && v > 0)
+                                        .filter(([r, v]) => {
+                                            void r
+                                            return v && v > 0
+                                        })
                                         .map(([r, v]) => `${v} ${r}`)
                                         .join(', ')
+
                                     const get = Object.entries(tradeIn)
-                                        .filter(([, v]) => v && v > 0)
+                                        .filter(([r, v]) => {
+                                            void r
+                                            return v && v > 0
+                                        })
                                         .map(([r, v]) => `${v} ${r}`)
                                         .join(', ')
+
                                     const msg = `${
                                         players[playerIndex!]?.name
                                     } wants to trade: Give [${
