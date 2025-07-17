@@ -411,6 +411,17 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         }
     }, [])
 
+    useEffect(() => {
+        socket.on('resourcesUpdated', ({ playerId, resources }) => {
+            setPlayers((prev) =>
+                prev.map((p) => (p.id === playerId ? { ...p, resources } : p))
+            )
+        })
+        return () => {
+            socket.off('resourcesUpdated')
+        }
+    }, [])
+
     const rollDice = () => {
         const die1 = Math.floor(Math.random() * 6) + 1
         const die2 = Math.floor(Math.random() * 6) + 1
@@ -884,44 +895,39 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             </div>
 
             {/* Player Panel - Bottom Right */}
-            <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-4">
+            <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-3 h-165 overflow-y-auto">
                 <h2 className="text-lg font-semibold mb-2">Players</h2>
-                <ul className="space-y-2">
+                <ul className="space-y-1 max-h-[calc(6*3rem)] overflow-y-auto">
                     {players.map((player, index) => (
                         <li
                             key={player.id || index}
-                            className="p-2 bg-gray-100 rounded"
+                            className="py-1 px-2 bg-gray-100 rounded"
                         >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 mb-1">
                                 <div
                                     className="w-3 h-3 rounded-full"
                                     style={{ backgroundColor: player.color }}
                                 ></div>
-                                <div className="font-bold">{player.name}</div>
+                                <div className="font-semibold text-sm truncate">
+                                    {player.name}
+                                </div>
                             </div>
-                            <div className="text-sm text-gray-600">
-                                Cards:{' '}
-                                {Object.values(player.resources).reduce(
-                                    (total, count) => total + count,
-                                    0
-                                )}
-                            </div>
-
-                            <div className="text-sm text-gray-600">
-                                Dev Cards: {player.devCards.length}
-                            </div>
-
-                            <div className="text-sm text-gray-600">
-                                Longest Road: {player.longestRoad}
-                            </div>
-
-                            <div className="text-sm text-gray-600">
-                                Robber Used: {player.robberUsed}
-                            </div>
-
-                            <div className="text-sm">
-                                <span className="font-semibold">Points:</span>{' '}
-                                {player.points || 0}
+                            <div className="text-xs text-gray-600 flex flex-wrap gap-2">
+                                <span>
+                                    Cards:{' '}
+                                    {Object.values(player.resources).reduce(
+                                        (a, c) => a + c,
+                                        0
+                                    )}
+                                </span>
+                                <span>Dev: {player.devCards.length}</span>
+                                <span>
+                                    Longest Road: {player.longestRoad || 0}
+                                </span>
+                                <span>
+                                    Robber Used: {player.robberUsed || 0}
+                                </span>
+                                <span>Points: {player.points || 0}</span>
                             </div>
                         </li>
                     ))}
@@ -951,31 +957,39 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 <button
                                     className="bg-green-400 hover:bg-green-500 text-white font-bold px-2 rounded"
                                     onClick={() => {
+                                        const newResources = {
+                                            ...players[playerIndex!].resources,
+                                            [resource]:
+                                                (players[playerIndex!]
+                                                    .resources[resource] || 0) +
+                                                1,
+                                        }
                                         setPlayers((prev) =>
                                             prev.map((p, i) =>
                                                 i === playerIndex
                                                     ? {
                                                           ...p,
-                                                          resources: {
-                                                              ...p.resources,
-                                                              [resource]:
-                                                                  (p.resources[
-                                                                      resource
-                                                                  ] || 0) + 1,
-                                                          },
+                                                          resources:
+                                                              newResources,
                                                       }
                                                     : p
                                             )
                                         )
                                         const msg = `${
-                                            players[playerIndex!]?.name
+                                            players[playerIndex!].name
                                         } gained 1 ${resource}`
                                         setLogs((prev) => [...prev, msg])
                                         socket.emit('resourceLog', msg)
+                                        socket.emit('updateResources', {
+                                            roomCode,
+                                            playerId: players[playerIndex!].id,
+                                            resources: newResources,
+                                        })
                                     }}
                                 >
                                     +
                                 </button>
+
                                 <img
                                     src={`/images/cards/${resource}.svg`}
                                     alt={resource}
@@ -989,32 +1003,36 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 <button
                                     className="bg-red-400 hover:bg-red-500 text-white font-bold px-2 rounded"
                                     onClick={() => {
+                                        const newResources = {
+                                            ...players[playerIndex!].resources,
+                                            [resource]: Math.max(
+                                                0,
+                                                (players[playerIndex!]
+                                                    .resources[resource] || 0) -
+                                                    1
+                                            ),
+                                        }
                                         setPlayers((prev) =>
                                             prev.map((p, i) =>
                                                 i === playerIndex
                                                     ? {
                                                           ...p,
-                                                          resources: {
-                                                              ...p.resources,
-                                                              [resource]:
-                                                                  Math.max(
-                                                                      0,
-                                                                      (p
-                                                                          .resources[
-                                                                          resource
-                                                                      ] || 0) -
-                                                                          1
-                                                                  ),
-                                                          },
+                                                          resources:
+                                                              newResources,
                                                       }
                                                     : p
                                             )
                                         )
                                         const msg = `${
-                                            players[playerIndex!]?.name
+                                            players[playerIndex!].name
                                         } lost 1 ${resource}`
                                         setLogs((prev) => [...prev, msg])
                                         socket.emit('resourceLog', msg)
+                                        socket.emit('updateResources', {
+                                            roomCode,
+                                            playerId: players[playerIndex!].id,
+                                            resources: newResources,
+                                        })
                                     }}
                                 >
                                     –
