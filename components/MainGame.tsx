@@ -17,7 +17,7 @@ const Hex = ({ tile }: { tile: HexTile }) => {
     const size = 40
     const centerX = 400 + tile.x
     const centerY = 350 + tile.y
-    
+
     const points = [...Array(6).keys()]
         .map((i) => {
             const angle = (Math.PI / 180) * (60 * i)
@@ -90,7 +90,7 @@ function shuffle<T>(array: T[]): T[] {
     return array
         .map((a) => [Math.random(), a] as const)
         .sort(([a], [b]) => a - b)
-        .map(([_, b]) => b)
+        .map(([, b]) => b)
 }
 
 interface CatanGamePageProps {
