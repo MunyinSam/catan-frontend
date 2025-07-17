@@ -339,7 +339,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                     ? {
                           ...p,
                           devCards: p.devCards.filter(
-                              (_, idx) => idx !== usedCardIndex
+                              (unused, idx) => idx !== usedCardIndex
                           ),
                       }
                     : p
@@ -349,7 +349,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             roomCode,
             playerId: players[playerIndex!]?.id,
             devCards: players[playerIndex!]?.devCards.filter(
-                (_, idx) => idx !== usedCardIndex
+                (unused, idx) => idx !== usedCardIndex
             ),
         })
 
@@ -401,7 +401,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     }, [])
 
     useEffect(() => {
-        socket.on('robberPlacedBroadcast', ({ tileId, playerId, log }) => {
+        socket.on('robberPlacedBroadcast', ({ tileId, log }) => {
             setRobberTileId(tileId)
             setLogs((prev) => [...prev, log])
         })
@@ -529,7 +529,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             if (!player) return
 
             const availableMaterials = Object.entries(player.resources)
-                .filter(([_, count]) => count > 0)
+                .filter(([unused, count]) => count > 0)
                 .map(([resource]) => resource)
 
             if (availableMaterials.length === 0) {
@@ -1365,11 +1365,11 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 onClick={() => {
                                     // Build trade summary string
                                     const give = Object.entries(tradeOut)
-                                        .filter(([_, v]) => v && v > 0)
+                                        .filter(([unused, v]) => v && v > 0)
                                         .map(([r, v]) => `${v} ${r}`)
                                         .join(', ')
                                     const get = Object.entries(tradeIn)
-                                        .filter(([_, v]) => v && v > 0)
+                                        .filter(([unused, v]) => v && v > 0)
                                         .map(([r, v]) => `${v} ${r}`)
                                         .join(', ')
                                     const msg = `${
