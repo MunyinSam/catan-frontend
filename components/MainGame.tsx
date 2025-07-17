@@ -526,7 +526,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             const availableMaterials = Object.entries(player.resources)
                 .filter(([resource, count]) => {
                     void resource
-                    count > 0
+                    return count > 0
                 })
                 .map(([resource]) => resource)
 
