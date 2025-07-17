@@ -552,9 +552,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     const spendResources = (
         cost: Partial<Record<keyof Player['resources'], number>>
     ): boolean => {
-        const player = players.find(
-            (p) => p.name === players[currentTurnIndex ?? 0]?.name
-        )
+        const player = players[playerIndex!]
         if (!player) return false
 
         // Check if player has enough resources
@@ -569,8 +567,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         }
 
         // Deduct resources
-        const updatedPlayers = players.map((p) => {
-            if (p.name !== players[currentTurnIndex ?? 0]?.name) return p
+        const updatedPlayers = players.map((p, i) => {
+            if (i !== playerIndex) return p
             const updatedResources = { ...p.resources }
             for (const [resource, amount] of Object.entries(cost)) {
                 updatedResources[resource as keyof Player['resources']] -=
