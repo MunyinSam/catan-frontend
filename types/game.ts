@@ -15,3 +15,19 @@ export type Port = {
   ratio: '2:1' | '3:1'
   resource: ResourceType | null
 }
+
+export type Road = {
+    start: { x: number; y: number }
+    end: { x: number; y: number }
+    ownerId: string
+}
+
+export type Settlement = {
+    position: { x: number; y: number }
+    ownerId: string
+}
+
+export type City = {
+    position: { x: number; y: number }
+    ownerId: string
+}

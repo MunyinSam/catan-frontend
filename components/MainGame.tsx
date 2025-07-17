@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { socket } from '../lib/socket'
 import { Player, Room } from '../types/lobby'
-import { HexTile, Port, ResourceType } from '../types/game'
+import { HexTile, Port, ResourceType, Road, Settlement, City } from '../types/game'
 import { getPolygonImage } from '../functions/maingame'
 
 const Hex = ({ tile }: { tile: HexTile }) => {
@@ -12,7 +12,7 @@ const Hex = ({ tile }: { tile: HexTile }) => {
     const centerY = 350 + tile.y
 
     const points = Array.from({ length: 6 })
-        .map((_, i) => {
+        .map((__, i) => {
             const angle = (Math.PI / 180) * (60 * i)
             const x = centerX + size * Math.cos(angle)
             const y = centerY + size * Math.sin(angle)
@@ -154,7 +154,6 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
 
         const handleStartGame = (board: HexTile[]) => {
             setTiles(board)
-            console.log('board state:', board)
         }
 
         const handleRoomInfo = (room: Room) => {
@@ -169,7 +168,6 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         }
 
         const handleDiceRoll = (rolls: [number, number]) => {
-            console.log('SOCKET: updateDiceRoll')
             setDice(rolls)
         }
 
@@ -193,7 +191,6 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     }, [roomCode])
 
     useEffect(() => {
-        // Listen for log messages from server
         socket.on('resourceLog', (msg: string) => {
             setLogs((prev) => [...prev, msg])
         })
@@ -203,7 +200,8 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     }, [])
 
     useEffect(() => {
-        const handleRemoteRoad = ({ road }: { road: any }) => {
+        const handleRemoteRoad = ({ road }: { road: Road }) => {
+            console.log('ROAD ', road);
             setRoads((prev) => [...prev, road])
         }
 
@@ -218,7 +216,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         const handleRemoteSettlement = ({
             settlement,
         }: {
-            settlement: any
+            settlement: Settlement
         }) => {
             setSettlements((prev) => [...prev, settlement])
         }
@@ -231,7 +229,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     }, [])
 
     useEffect(() => {
-        const handleRemoteCity = ({ city }: { city: any }) => {
+        const handleRemoteCity = ({ city }: { city: City }) => {
             setCities((prev) => [...prev, city])
         }
 
@@ -243,11 +241,11 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
     }, [])
 
     useEffect(() => {
-        console.log('isBuildingRoad:', isBuildingRoad)
+        // console.log('isBuildingRoad:', isBuildingRoad)
     }, [isBuildingRoad])
 
     useEffect(() => {
-        console.log('mousePos:', mousePos)
+        // console.log('mousePos:', mousePos)
     }, [mousePos])
 
     useEffect(() => {
