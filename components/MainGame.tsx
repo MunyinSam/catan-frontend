@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { socket } from '../lib/socket'
 import { Player, Room } from '../types/lobby'
-import { MaterialType, HexTile } from '../types/game'
+import { MaterialType, HexTile, Port, ResourceType } from '../types/game'
 import { getPolygonImage } from '../functions/maingame'
 
 const Hex = ({ tile }: { tile: HexTile }) => {
@@ -64,6 +64,28 @@ const Hex = ({ tile }: { tile: HexTile }) => {
     )
 }
 
+const portCoords: { x: number; y: number }[] = [
+    { x: 340, y: 90 },
+    { x: 460, y: 90 },
+    { x: 600, y: 160 },
+    { x: 670, y: 280 },
+    { x: 670, y: 420 },
+    { x: 130, y: 280 },
+    { x: 130, y: 420 },
+    { x: 600, y: 530 },
+    { x: 200, y: 540 },
+    { x: 200, y: 160 },
+    { x: 330, y: 600 },
+    { x: 470, y: 600 },
+]
+
+function shuffle<T>(array: T[]): T[] {
+    return array
+        .map((a) => [Math.random(), a] as const)
+        .sort(([a], [b]) => a - b)
+        .map(([_, b]) => b)
+}
+
 interface CatanGamePageProps {
     roomCode: string
 }
@@ -101,6 +123,14 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         null
     )
 
+    const [pendingResources, setPendingResources] = useState<
+        Player['resources'] | null
+    >(null)
+    const [logs, setLogs] = useState<string[]>([])
+    const [ports] = useState(() => generatePorts())
+    const [isPlacingRobber, setIsPlacingRobber] = useState(false)
+    const [robberTileId, setRobberTileId] = useState<number | null>(null)
+
     const isMyTurn = playerIndex === currentTurnIndex
     const resourceCosts: {
         [action: string]: Partial<Record<keyof Player['resources'], number>>
@@ -110,6 +140,14 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         'Buy City': { wheat: 2, ore: 3 },
         'Buy Dev Card': { wheat: 1, sheep: 1, ore: 1 },
     }
+
+    const logRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        if (logRef.current) {
+            logRef.current.scrollTop = logRef.current.scrollHeight
+        }
+    }, [logs])
 
     useEffect(() => {
         socket.emit('gameStart', roomCode)
@@ -156,6 +194,16 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             socket.off('turnChanged', handleTurnChanged)
         }
     }, [roomCode])
+
+    useEffect(() => {
+        // Listen for log messages from server
+        socket.on('resourceLog', (msg: string) => {
+            setLogs((prev) => [...prev, msg])
+        })
+        return () => {
+            socket.off('resourceLog')
+        }
+    }, [])
 
     useEffect(() => {
         const handleRemoteRoad = ({ road }: { road: any }) => {
@@ -215,46 +263,84 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isBuildingRoad])
 
+    useEffect(() => {
+        if (playerIndex != null && players[playerIndex]) {
+            setPendingResources({ ...players[playerIndex].resources })
+        }
+    }, [playerIndex, players])
+
+    useEffect(() => {
+        socket.on('robberMoved', ({ tileId }) => {
+            setRobberTileId(tileId)
+        })
+        return () => {
+            socket.off('robberMoved')
+        }
+    }, [])
+
     const rollDice = () => {
         const die1 = Math.floor(Math.random() * 6) + 1
         const die2 = Math.floor(Math.random() * 6) + 1
         setDice([die1, die2])
         socket.emit('diceRoll', { roomCode, rolls: [die1, die2] })
+        const msg = `${players[playerIndex!]?.name} rolled ${die1} and ${die2}`
+        setLogs((prev) => [...prev, msg])
+        socket.emit('resourceLog', msg)
     }
 
     const actionHandlers = {
         Trade: () => {
-            console.log('Trade clicked')
+            const msg = `${players[playerIndex!]?.name} opened the Trade panel`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
             setShowTradeUI(true) // we'll design a simple trade UI next
         },
         'Buy Dev Card': () => {
             if (spendResources(resourceCosts['Buy Dev Card'])) {
-                console.log('Bought Dev Card')
+                const msg = `${
+                    players[playerIndex!]?.name
+                } bought a Development Card`
+                setLogs((prev) => [...prev, msg])
+                socket.emit('resourceLog', msg)
                 // Add dev card logic here
             }
         },
         'Buy Road': () => {
             if (spendResources(resourceCosts['Buy Road'])) {
-                console.log('Bought Road')
+                const msg = `${
+                    players[playerIndex!]?.name
+                } started building a Road`
+                setLogs((prev) => [...prev, msg])
+                socket.emit('resourceLog', msg)
                 setIsBuildingRoad(true)
             }
         },
         'Buy Settlement': () => {
             if (spendResources(resourceCosts['Buy Settlement'])) {
-                console.log('Built Settlement')
+                const msg = `${
+                    players[playerIndex!]?.name
+                } started building a Settlement`
+                setLogs((prev) => [...prev, msg])
+                socket.emit('resourceLog', msg)
                 setIsBuildingSettlement(true)
                 // Add settlement placing logic here
             }
         },
         'Buy City': () => {
             if (spendResources(resourceCosts['Buy City'])) {
-                console.log('Upgraded to City')
+                const msg = `${
+                    players[playerIndex!]?.name
+                } started building a City`
+                setLogs((prev) => [...prev, msg])
+                socket.emit('resourceLog', msg)
                 setIsBuildingCity(true)
                 // Add city upgrade logic here
             }
         },
         'End Turn': () => {
-            console.log('End Turn clicked')
+            const msg = `${players[playerIndex!]?.name} ended their turn`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
             socket.emit('endTurn', roomCode)
         },
     }
@@ -293,13 +379,50 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         return true
     }
 
+    function generatePorts(): Port[] {
+        const resources: ResourceType[] = [
+            'brick',
+            'wood',
+            'ore',
+            'wheat',
+            'sheep',
+        ]
+
+        // 2 null ports (3:1)
+        const portsData: Omit<Port, 'x' | 'y'>[] = [
+            { ratio: '3:1', resource: null },
+            { ratio: '3:1', resource: null },
+        ]
+
+        // Add each resource once
+        const baseResources = [...resources]
+
+        // Add 5 more random ones from all 5
+        const additional = shuffle([...resources]).slice(0, 5)
+
+        const finalResources = shuffle([...baseResources, ...additional])
+
+        portsData.push(
+            ...finalResources.map((resource) => ({
+                ratio: '2:1' as const,
+                resource,
+            }))
+        )
+
+        const shuffledCoords = shuffle(portCoords)
+
+        return shuffledCoords.map((coord, i) => ({
+            ...coord,
+            ...portsData[i],
+        }))
+    }
+
     return (
         <div className="relative w-screen h-screen bg-blue-200 overflow-hidden">
-            <div className="absolute bottom-70 right-4 flex gap-2 bg-white shadow-md rounded-lg p-3">
+            <div className="absolute top-4 left-60 flex gap-2 bg-white shadow-md rounded-lg p-3">
                 Current Turn:{' '}
                 {players[currentTurnIndex ?? 0]?.name || 'Waiting...'}
             </div>
-
             {/* Game Board Centered */}
             <div className="absolute inset-0 flex justify-center items-center">
                 <svg
@@ -327,7 +450,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                     y: mousePos.y - dy,
                                 },
                                 end: { x: mousePos.x + dx, y: mousePos.y + dy },
-                                ownerId: socket.id,
+                                ownerId: socket.id as string,
                             }
 
                             setRoads((prev) => [...prev, newRoad])
@@ -344,7 +467,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         if (isBuildingSettlement) {
                             const newSettlement = {
                                 position: { x: mousePos.x, y: mousePos.y },
-                                ownerId: socket.id,
+                                ownerId: socket.id as string,
                             }
                             setSettlements((prev) => [...prev, newSettlement])
                             socket.emit('buildSettlement', {
@@ -359,7 +482,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         if (isBuildingCity) {
                             const newCity = {
                                 position: { x: mousePos.x, y: mousePos.y },
-                                ownerId: socket.id,
+                                ownerId: socket.id as string,
                             }
                             setCities((prev) => [...prev, newCity])
                             socket.emit('buildCity', {
@@ -370,11 +493,92 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             setMousePos(null)
                             return
                         }
+
+                        if (isPlacingRobber) {
+                            // Find the closest tile to mousePos
+                            let closestTile = null
+                            let minDist = Infinity
+                            for (const tile of tiles) {
+                                const centerX = 400 + tile.x
+                                const centerY = 350 + tile.y
+                                const dist = Math.hypot(
+                                    centerX - mousePos.x,
+                                    centerY - mousePos.y
+                                )
+                                if (dist < minDist) {
+                                    minDist = dist
+                                    closestTile = tile
+                                }
+                            }
+                            if (closestTile) {
+                                setRobberTileId(closestTile.id)
+                                setIsPlacingRobber(false)
+                                const msg = `${
+                                    players[playerIndex!]?.name
+                                } placed the Robber on ${
+                                    closestTile.materialType
+                                } (${closestTile.rollNumber ?? ''})`
+                                setLogs((prev) => [...prev, msg])
+                                socket.emit('resourceLog', msg)
+                                socket.emit('robberMoved', {
+                                    roomCode,
+                                    tileId: closestTile.id,
+                                })
+                            }
+                            return
+                        }
                     }}
                 >
-                    <g transform="translate(-50, 0)">
+                    <g transform="translate(-50, -10)">
                         {tiles.map((tile) => (
                             <Hex key={tile.id} tile={tile} />
+                        ))}
+
+                        {ports.map((port, idx) => (
+                            <g
+                                key={idx}
+                                transform={`translate(${port.x},${port.y})`}
+                            >
+                                <rect
+                                    x={-32}
+                                    y={-22}
+                                    width={64}
+                                    height={44}
+                                    rx={8}
+                                    fill="#fffbe6"
+                                    stroke="#bfa14a"
+                                    strokeWidth={2}
+                                    opacity={0.95}
+                                />
+                                <text
+                                    x={-20}
+                                    y={5}
+                                    fontSize="16"
+                                    fontWeight="bold"
+                                    fill="#bfa14a"
+                                >
+                                    {port.ratio}
+                                </text>
+                                {port.resource ? (
+                                    <image
+                                        href={`/images/cards/${port.resource}.svg`}
+                                        x={10}
+                                        y={-13}
+                                        width={25}
+                                        height={25}
+                                    />
+                                ) : (
+                                    <text
+                                        x={18}
+                                        y={5}
+                                        fontSize="18"
+                                        fontWeight="bold"
+                                        fill="#bfa14a"
+                                    >
+                                        ?
+                                    </text>
+                                )}
+                            </g>
                         ))}
 
                         {roads.map((road, idx) => {
@@ -431,6 +635,24 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             )
                         })}
 
+                        {robberTileId &&
+                            tiles.map((tile) =>
+                                tile.id === robberTileId ? (
+                                    <circle
+                                        key="robber"
+                                        cx={400 + tile.x}
+                                        cy={350 + tile.y}
+                                        r={18}
+                                        fill="black"
+                                        stroke="gold"
+                                        strokeWidth={3}
+                                        opacity={0.8}
+                                    >
+                                        <title>Robber</title>
+                                    </circle>
+                                ) : null
+                            )}
+
                         {/* Ghost road preview that follows mouse */}
                         {isBuildingRoad &&
                             mousePos &&
@@ -482,83 +704,22 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 pointerEvents="none"
                             />
                         )}
+
+                        {isPlacingRobber && mousePos && (
+                            <circle
+                                cx={mousePos.x}
+                                cy={mousePos.y}
+                                r={18}
+                                fill="black"
+                                opacity={0.4}
+                                stroke="gold"
+                                strokeWidth={2}
+                                pointerEvents="none"
+                            />
+                        )}
                     </g>
                 </svg>
             </div>
-
-            {/* Card Adjustment Panel - Bottom Left, above cards */}
-            <div className="absolute bottom-24 left-16 flex flex-col gap-2 bg-white shadow-md rounded-lg p-3 z-20">
-                <div className="font-bold mb-1 text-center">Adjust Cards</div>
-                {(
-                    [
-                        'brick',
-                        'ore',
-                        'sheep',
-                        'wheat',
-                        'wood',
-                    ] as (keyof Player['resources'])[]
-                ).map((resource) => (
-                    <div key={resource} className="flex items-center gap-2">
-                        <img
-                            src={`/images/cards/${resource}.svg`}
-                            alt={resource}
-                            className="w-8 h-12"
-                        />
-                        <button
-                            className="bg-green-400 hover:bg-green-500 text-white font-bold px-2 rounded"
-                            onClick={() => {
-                                setPlayers((prev) =>
-                                    prev.map((p, i) =>
-                                        i === playerIndex
-                                            ? {
-                                                  ...p,
-                                                  resources: {
-                                                      ...p.resources,
-                                                      [resource]:
-                                                          (p.resources[
-                                                              resource
-                                                          ] || 0) + 1,
-                                                  },
-                                              }
-                                            : p
-                                    )
-                                )
-                            }}
-                        >
-                            +
-                        </button>
-                        <button
-                            className="bg-red-400 hover:bg-red-500 text-white font-bold px-2 rounded"
-                            onClick={() => {
-                                setPlayers((prev) =>
-                                    prev.map((p, i) =>
-                                        i === playerIndex
-                                            ? {
-                                                  ...p,
-                                                  resources: {
-                                                      ...p.resources,
-                                                      [resource]: Math.max(
-                                                          0,
-                                                          (p.resources[
-                                                              resource
-                                                          ] || 0) - 1
-                                                      ),
-                                                  },
-                                              }
-                                            : p
-                                    )
-                                )
-                            }}
-                        >
-                            –
-                        </button>
-                        <span className="ml-2 font-mono">
-                            {players[playerIndex!]?.resources[resource] ?? 0}
-                        </span>
-                    </div>
-                ))}
-            </div>
-
             {/* Player Panel - Bottom Right */}
             <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-4">
                 <h2 className="text-lg font-semibold mb-2">Players</h2>
@@ -591,28 +752,112 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </ul>
             </div>
 
-            {players[0] && players[0].resources && (
-                <div className="absolute bottom-4 left-16 flex gap-2 bg-white shadow-md rounded-lg p-3">
-                    {Object.entries(players[0].resources).map(
-                        ([resource, count]) => (
+            {/* RESOURCES*/}
+            {players[playerIndex ?? 0] &&
+                players[playerIndex ?? 0].resources && (
+                    <div className="absolute bottom-4 left-16 flex flex-col gap-2 bg-white shadow-md rounded-lg p-3 z-20">
+                        <div className="font-bold mb-1 text-center">
+                            Your Resources
+                        </div>
+                        {(
+                            [
+                                'brick',
+                                'ore',
+                                'sheep',
+                                'wheat',
+                                'wood',
+                            ] as (keyof Player['resources'])[]
+                        ).map((resource) => (
                             <div
                                 key={resource}
-                                className="flex items-center gap-1"
+                                className="flex items-center gap-2"
                             >
+                                <button
+                                    className="bg-green-400 hover:bg-green-500 text-white font-bold px-2 rounded"
+                                    onClick={() => {
+                                        setPlayers((prev) =>
+                                            prev.map((p, i) =>
+                                                i === playerIndex
+                                                    ? {
+                                                          ...p,
+                                                          resources: {
+                                                              ...p.resources,
+                                                              [resource]:
+                                                                  (p.resources[
+                                                                      resource
+                                                                  ] || 0) + 1,
+                                                          },
+                                                      }
+                                                    : p
+                                            )
+                                        )
+                                        const msg = `${
+                                            players[playerIndex!]?.name
+                                        } gained 1 ${resource}`
+                                        setLogs((prev) => [...prev, msg])
+                                        socket.emit('resourceLog', msg)
+                                    }}
+                                >
+                                    +
+                                </button>
                                 <img
                                     src={`/images/cards/${resource}.svg`}
                                     alt={resource}
                                     className="w-8 h-12"
                                 />
                                 <span className="text-sm font-semibold">
-                                    {count}
+                                    {players[playerIndex!]?.resources[
+                                        resource
+                                    ] ?? 0}
                                 </span>
+                                <button
+                                    className="bg-red-400 hover:bg-red-500 text-white font-bold px-2 rounded"
+                                    onClick={() => {
+                                        setPlayers((prev) =>
+                                            prev.map((p, i) =>
+                                                i === playerIndex
+                                                    ? {
+                                                          ...p,
+                                                          resources: {
+                                                              ...p.resources,
+                                                              [resource]:
+                                                                  Math.max(
+                                                                      0,
+                                                                      (p
+                                                                          .resources[
+                                                                          resource
+                                                                      ] || 0) -
+                                                                          1
+                                                                  ),
+                                                          },
+                                                      }
+                                                    : p
+                                            )
+                                        )
+                                        const msg = `${
+                                            players[playerIndex!]?.name
+                                        } lost 1 ${resource}`
+                                        setLogs((prev) => [...prev, msg])
+                                        socket.emit('resourceLog', msg)
+                                    }}
+                                >
+                                    –
+                                </button>
                             </div>
-                        )
-                    )}
+                        ))}
+                    </div>
+                )}
+            {/* LOGS */}
+            <div className="absolute top-4 right-4 w-80 bg-white shadow-lg rounded-lg p-4 z-30">
+                <h2 className="text-lg font-semibold mb-2">Game Log</h2>
+                <div ref={logRef} className="h-48 overflow-y-auto text-sm">
+                    {logs.map((log, idx) => (
+                        <div key={idx} className="mb-1">
+                            {log}
+                        </div>
+                    ))}
                 </div>
-            )}
-
+            </div>
             {/* Shop Panel - Bottom Center */}
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white shadow-md rounded-lg p-3">
                 {Object.entries(actionHandlers).map(([action, handler]) => (
@@ -627,8 +872,17 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                         {action}
                     </button>
                 ))}
+                <button
+                    className={`bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded shadow
+        ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={
+                        isMyTurn ? () => setIsPlacingRobber(true) : undefined
+                    }
+                    disabled={!isMyTurn}
+                >
+                    Place Robber
+                </button>
             </div>
-
             {/* Dice Panel - Above Shop, Left of Player Tab */}
             <div className="absolute bottom-4 right-76 flex flex-col items-center gap-2">
                 {dice && (
@@ -658,14 +912,12 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                     Roll Dice
                 </button>
             </div>
-
             {/* Shop Cost Display (Image) - Bottom Left */}
             <img
                 src={'/images/shop/shop.png'}
                 alt="Shop Cost"
                 className="absolute top-4 left-4 w-56 h-64 object-contain"
             />
-
             {showTradeUI && (
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-lg w-96">

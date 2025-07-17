@@ -7,3 +7,11 @@ export interface HexTile {
     x: number
     y: number
 }
+
+export type ResourceType = 'brick' | 'wood' | 'ore' | 'wheat' | 'sheep'
+export type Port = {
+  x: number
+  y: number
+  ratio: '2:1' | '3:1'
+  resource: ResourceType | null
+}
