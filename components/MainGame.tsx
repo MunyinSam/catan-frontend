@@ -372,6 +372,45 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
         }
     }, [])
 
+    useEffect(() => {
+        socket.on('longestRoadUpdated', ({ playerId, roadLength }) => {
+            setPlayers((prevPlayers) =>
+                prevPlayers.map((p) =>
+                    p.id === playerId ? { ...p, longestRoad: roadLength } : p
+                )
+            )
+        })
+
+        return () => {
+            socket.off('longestRoadUpdated')
+        }
+    }, [])
+
+    useEffect(() => {
+        socket.on('robberUsedUpdated', ({ playerId, robberUsed }) => {
+            setPlayers((prevPlayers) =>
+                prevPlayers.map((p) =>
+                    p.id === playerId ? { ...p, robberUsed } : p
+                )
+            )
+        })
+
+        return () => {
+            socket.off('robberUsedUpdated')
+        }
+    }, [])
+
+    useEffect(() => {
+        socket.on('robberPlacedBroadcast', ({ tileId, playerId, log }) => {
+            setRobberTileId(tileId)
+            setLogs((prev) => [...prev, log])
+        })
+
+        return () => {
+            socket.off('robberPlacedBroadcast')
+        }
+    }, [])
+
     const rollDice = () => {
         const die1 = Math.floor(Math.random() * 6) + 1
         const die2 = Math.floor(Math.random() * 6) + 1
@@ -473,6 +512,30 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
             setLogs((prev) => [...prev, msg])
             socket.emit('resourceLog', msg)
             socket.emit('endTurn', roomCode)
+        },
+        'Random Material': () => {
+            const player = players[playerIndex!]
+            if (!player) return
+
+            const availableMaterials = Object.entries(player.resources)
+                .filter(([_, count]) => count > 0)
+                .map(([resource]) => resource)
+
+            if (availableMaterials.length === 0) {
+                const msg = `${player.name} has no resources to randomize`
+                setLogs((prev) => [...prev, msg])
+                socket.emit('resourceLog', msg)
+                return
+            }
+
+            const randomIndex = Math.floor(
+                Math.random() * availableMaterials.length
+            )
+            const randomMaterial = availableMaterials[randomIndex]
+
+            const msg = `${player.name} randomly got: ${randomMaterial}`
+            setLogs((prev) => [...prev, msg])
+            socket.emit('resourceLog', msg)
         },
     }
 
@@ -616,6 +679,12 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                                 socket.emit('robberMoved', {
                                     roomCode,
                                     tileId: closestTile.id,
+                                })
+                                socket.emit('robberPlaced', {
+                                    roomCode,
+                                    tileId: closestTile.id,
+                                    playerId: players[playerIndex!]?.id,
+                                    log: msg,
                                 })
                             }
                             return
@@ -841,6 +910,19 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                             <div className="text-sm text-gray-600">
                                 Dev Cards: {player.devCards.length}
                             </div>
+
+                            <div className="text-sm text-gray-600">
+                                Longest Road: {player.longestRoad}
+                            </div>
+
+                            <div className="text-sm text-gray-600">
+                                Robber Used: {player.robberUsed}
+                            </div>
+
+                            <div className="text-sm">
+                                <span className="font-semibold">Points:</span>{' '}
+                                {player.points || 0}
+                            </div>
                         </li>
                     ))}
                 </ul>
@@ -988,18 +1070,106 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </div>
             )}
 
-            <button
-                className="ml-2 px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
-                onClick={() => {
-                    const currentPoints = players[playerIndex!]?.points || 0
-                    socket.emit('updatePoints', {
-                        playerId: players[playerIndex!]?.id,
-                        points: currentPoints + 1,
-                    })
-                }}
-            >
-                +1 Point
-            </button>
+            <div className="absolute bottom-4 left-48 z-50 flex flex-col space-y-1 bg-white/80 p-2 rounded shadow text-[10px]">
+                {/* POINTS */}
+                <div className="flex items-center space-x-2">
+                    <span className="w-28">Points</span>
+                    <button
+                        className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded"
+                        onClick={() => {
+                            const currentPoints =
+                                players[playerIndex!]?.points || 0
+                            socket.emit('updatePoints', {
+                                roomCode,
+                                playerId: players[playerIndex!]?.id,
+                                points: currentPoints + 1,
+                            })
+                        }}
+                    >
+                        +1
+                    </button>
+                    <button
+                        className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                        onClick={() => {
+                            const currentPoints =
+                                players[playerIndex!]?.points || 0
+                            socket.emit('updatePoints', {
+                                roomCode,
+                                playerId: players[playerIndex!]?.id,
+                                points: Math.max(currentPoints - 1, 0),
+                            })
+                        }}
+                    >
+                        -1
+                    </button>
+                </div>
+
+                {/* LONGEST ROAD */}
+                <div className="flex items-center space-x-2">
+                    <span className="w-28">Longest Road</span>
+                    <button
+                        className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded"
+                        onClick={() => {
+                            const currentRoad =
+                                players[playerIndex!]?.longestRoad || 0
+                            socket.emit('updateLongestRoad', {
+                                roomCode,
+                                playerId: players[playerIndex!]?.id,
+                                longestRoad: currentRoad + 1,
+                            })
+                        }}
+                    >
+                        +1
+                    </button>
+                    <button
+                        className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                        onClick={() => {
+                            const currentRoad =
+                                players[playerIndex!]?.longestRoad || 0
+                            socket.emit('updateLongestRoad', {
+                                roomCode,
+                                playerId: players[playerIndex!]?.id,
+                                longestRoad: Math.max(currentRoad - 1, 0),
+                            })
+                        }}
+                    >
+                        -1
+                    </button>
+                </div>
+
+                {/* ROBBER USED */}
+                <div className="flex items-center space-x-2">
+                    <span className="w-28">Robber Used</span>
+                    <button
+                        className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded"
+                        onClick={() => {
+                            const currentRobber =
+                                players[playerIndex!]?.robberUsed || 0
+                            socket.emit('updateRobberUsed', {
+                                roomCode,
+                                playerId: players[playerIndex!]?.id,
+                                robberUsed: currentRobber + 1,
+                            })
+                        }}
+                    >
+                        +1
+                    </button>
+                    <button
+                        className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                        onClick={() => {
+                            const currentRobber =
+                                players[playerIndex!]?.robberUsed || 0
+                            socket.emit('updateRobberUsed', {
+                                roomCode,
+                                playerId: players[playerIndex!]?.id,
+                                robberUsed: Math.max(currentRobber - 1, 0),
+                            })
+                        }}
+                    >
+                        -1
+                    </button>
+                </div>
+            </div>
 
             {/* LOGS */}
             <div className="absolute top-20 left-10 w-80 bg-white shadow-lg rounded-lg p-4 z-30">
@@ -1013,13 +1183,13 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                 </div>
             </div>
             {/* Shop Panel - Bottom Center */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white shadow-md rounded-lg p-3 text-sm">
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex gap-1 bg-white shadow-md rounded-md p-2 text-xs max-w-md">
                 {Object.entries(actionHandlers).map(([action, handler]) => (
                     <button
                         key={action}
-                        className={`bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-3 rounded shadow
-            ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
+                        className={`bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-1 px-2 rounded shadow
+                ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
                         onClick={isMyTurn ? handler : undefined}
                         disabled={!isMyTurn}
                     >
@@ -1027,8 +1197,9 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
                     </button>
                 ))}
                 <button
-                    className={`bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded shadow
-        ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-2 rounded shadow
+            ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
                     onClick={
                         isMyTurn ? () => setIsPlacingRobber(true) : undefined
                     }

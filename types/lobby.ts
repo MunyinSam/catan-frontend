@@ -22,6 +22,7 @@ export interface Player {
     hasLargestArmy: boolean
 
     longestRoad: number
+    robberUsed: number
 
     invRoad: number
     invSettlement: number
