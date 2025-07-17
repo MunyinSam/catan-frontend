@@ -894,7 +894,7 @@ const CatanGamePage: React.FC<CatanGamePageProps> = ({ roomCode }) => {
 
             {/* Player Panel - Bottom Right */}
             {/* Player Panel - Bottom Right */}
-            <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-3 h-[26rem] flex flex-col">
+            <div className="absolute bottom-4 right-4 w-64 bg-white shadow-lg rounded-lg p-3 h-[40rem] flex flex-col">
                 <h2 className="text-lg font-semibold mb-2">Players</h2>
                 <ul className="space-y-1 overflow-y-auto flex-1">
                     {players.map((player, index) => (
